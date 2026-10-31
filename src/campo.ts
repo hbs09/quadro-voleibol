@@ -8,6 +8,8 @@ import type { Ponto } from './tipos'
 export const LARGURA = 900
 export const COMPRIMENTO = 900
 export const LINHA_ATAQUE = 300
+/** Parte do campo adversário mostrada no modo Jogada (cm a partir da rede). */
+export const ADVERSARIO = 450
 /** Zona livre à volta do campo que se pode usar no quadro. */
 export const ZONA_LIVRE = { lado: 40, fundo: 80 }
 

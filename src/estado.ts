@@ -4,6 +4,17 @@ import type { StateStorage } from 'zustand/middleware'
 import type { EmCampo, Jogador, Ponto } from './tipos'
 import { CENTRO_ZONA, limitar } from './campo'
 import { noBanco, novoId, trocaLibero, trocar } from './plantel'
+import {
+  SEGUINTE,
+  ferramentaDepois,
+  alterarPasso,
+  apagarPasso,
+  inserirMovimento,
+  inserirToque,
+  limitarBola,
+  novaJogada,
+} from './jogada'
+import type { Acao, Destino, Jogada } from './jogada'
 
 /** Plantel de exemplo: 6 em campo (5-1, rotação 1) e 6 no banco. */
 export const PLANTEL_INICIAL: Jogador[] = [
@@ -42,11 +53,15 @@ function centrar(emCampo: EmCampo[]): EmCampo[] {
 
 export type Etiqueta = 'numero' | 'nome'
 export type Selecao = { lado: 'campo' | 'banco'; id: string } | null
+export type Modo = 'formacao' | 'jogada'
 
 interface Fotografia {
   plantel: Jogador[]
   emCampo: EmCampo[]
   liberoAtivo: boolean
+  jogada: Jogada | null
+  passoAtual: number
+  ferramenta: Acao
 }
 
 export interface Aviso {
@@ -57,6 +72,7 @@ export interface Aviso {
 }
 
 interface EstadoQuadro extends Fotografia {
+  modo: Modo
   etiqueta: Etiqueta
   selecao: Selecao
   /** Jogador a editar: id, 'novo' ou null (folha fechada). */
@@ -79,6 +95,18 @@ interface EstadoQuadro extends Fotografia {
   fecharEdicao: () => void
   guardarJogador: (dados: Omit<Jogador, 'id'>, id: string | null) => void
   removerJogador: (id: string) => void
+
+  setModo: (m: Modo) => void
+  setFerramenta: (a: Acao) => void
+  irPasso: (i: number) => void
+  /** Move um lugar (zona) no passo atual da jogada. */
+  moverNoPasso: (zona: number, p: Ponto) => void
+  moverBola: (p: Ponto) => void
+  /** Toque com a ferramenta atual até um jogador ou um ponto; cria um passo novo. */
+  levarBola: (destino: Destino) => void
+  novoPasso: () => void
+  apagarPassoAtual: () => void
+  limparJogada: () => void
 
   avisar: (texto: string, desfazer?: boolean) => void
   fecharAviso: () => void
@@ -116,14 +144,30 @@ export const useQuadro = create<EstadoQuadro>()(
     (set, get) => {
       const fotografia = (): Fotografia => {
         const s = get()
-        return { plantel: s.plantel, emCampo: s.emCampo, liberoAtivo: s.liberoAtivo }
+        return {
+          plantel: s.plantel,
+          emCampo: s.emCampo,
+          liberoAtivo: s.liberoAtivo,
+          jogada: s.jogada,
+          passoAtual: s.passoAtual,
+          ferramenta: s.ferramenta,
+        }
       }
+      const aviso = (texto: string, desfazer: boolean): Aviso => ({
+        texto,
+        desfazer,
+        chave: Date.now(),
+      })
       const nome = (id: string) => get().plantel.find((j) => j.id === id)?.nome ?? '?'
 
       return {
         plantel: PLANTEL_INICIAL,
         emCampo: formacaoBase(),
         liberoAtivo: false,
+        jogada: null,
+        passoAtual: 0,
+        ferramenta: 'servir',
+        modo: 'formacao',
         etiqueta: 'numero',
         selecao: null,
         editar: null,
@@ -253,6 +297,86 @@ export const useQuadro = create<EstadoQuadro>()(
           })
         },
 
+        setModo: (modo) => {
+          const s = get()
+          if (modo === 'jogada' && !s.jogada) {
+            set({ jogada: novaJogada(s.emCampo), passoAtual: 0, ferramenta: 'servir' })
+          }
+          set({ modo, selecao: null })
+        },
+
+        setFerramenta: (ferramenta) => set({ ferramenta }),
+
+        irPasso: (i) => {
+          const j = get().jogada
+          if (!j) return
+          const passoAtual = Math.max(0, Math.min(j.passos.length - 1, i))
+          set({ passoAtual, ferramenta: ferramentaDepois(j.passos, passoAtual) })
+        },
+
+        moverNoPasso: (zona, p) => {
+          const s = get()
+          if (!s.jogada) return
+          const destino = limitar(p)
+          set({
+            jogada: alterarPasso(s.jogada, s.passoAtual, (passo) => ({
+              ...passo,
+              posicoes: { ...passo.posicoes, [zona]: destino },
+            })),
+          })
+        },
+
+        moverBola: (p) => {
+          const s = get()
+          if (!s.jogada) return
+          const bola = limitarBola(p)
+          set({
+            jogada: alterarPasso(s.jogada, s.passoAtual, (passo) => ({ ...passo, bola, recebe: null })),
+          })
+        },
+
+        levarBola: (destino) => {
+          const s = get()
+          if (!s.jogada) return
+          s.marcar()
+          set({
+            jogada: inserirToque(s.jogada, s.passoAtual, s.ferramenta, destino),
+            passoAtual: s.passoAtual + 1,
+            ferramenta: SEGUINTE[s.ferramenta],
+          })
+        },
+
+        novoPasso: () => {
+          const s = get()
+          if (!s.jogada) return
+          s.marcar()
+          set({ jogada: inserirMovimento(s.jogada, s.passoAtual), passoAtual: s.passoAtual + 1 })
+        },
+
+        apagarPassoAtual: () => {
+          const s = get()
+          if (!s.jogada || s.jogada.passos.length <= 1) return
+          s.marcar()
+          const n = s.passoAtual + 1
+          set({
+            jogada: apagarPasso(s.jogada, s.passoAtual),
+            passoAtual: Math.max(0, s.passoAtual - 1),
+            ferramenta: ferramentaDepois(apagarPasso(s.jogada, s.passoAtual).passos, Math.max(0, s.passoAtual - 1)),
+            aviso: aviso(`Passo ${n} apagado.`, true),
+          })
+        },
+
+        limparJogada: () => {
+          const s = get()
+          s.marcar()
+          set({
+            jogada: novaJogada(s.emCampo),
+            passoAtual: 0,
+            ferramenta: 'servir',
+            aviso: aviso('Jogada limpa. Recomeça a partir da formação.', true),
+          })
+        },
+
         avisar: (texto, desfazer = false) =>
           set({ aviso: { texto, desfazer, chave: Date.now() } }),
         fecharAviso: () => set({ aviso: null }),
@@ -260,14 +384,20 @@ export const useQuadro = create<EstadoQuadro>()(
     },
     {
       name: 'quadro-voleibol',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => armazenamentoSeguro),
       partialize: (s) => ({
         plantel: s.plantel,
         emCampo: s.emCampo,
         liberoAtivo: s.liberoAtivo,
         etiqueta: s.etiqueta,
+        modo: s.modo,
+        jogada: s.jogada,
+        passoAtual: s.passoAtual,
+        ferramenta: s.ferramenta,
       }),
+      // Versões antigas não tinham jogada: os campos novos vêm dos valores iniciais.
+      migrate: (antigo) => antigo as Partial<EstadoQuadro>,
     },
   ),
 )

@@ -22,7 +22,7 @@ npm run build    # gera a pasta dist/
 - [x] Fase 0 – Projeto, cores e tipos da equipa (claro/escuro automático)
 - [x] Fase 1 – Meio-campo com 6 jogadores arrastáveis, N.º/Nome, Desfazer, Repor
 - [x] Fase 2 – Plantel e banco, substituições, líbero (o plantel fica guardado no dispositivo)
-- [ ] Fase 4 – Editor de jogadas por passos
+- [x] Fase 4 – Editor de jogadas por passos (servir, passe, levantar, rematar, movimentos)
 - [ ] Fase 5 – Reprodução animada
 - [ ] Fase 6 – Guardar jogadas e sistemas
 - [ ] Fase 3 – Sistemas e rotações
@@ -34,5 +34,12 @@ npm run build    # gera a pasta dist/
 - `src/plantel.ts` – banco, trocas, líbero e validação de jogadores (funções puras, testadas)
 - `src/estado.ts` – estado do quadro (Zustand) com histórico para Desfazer e gravação no dispositivo
 - `src/components/Banco.tsx`, `FolhaJogador.tsx`, `Aviso.tsx` – banco, edição de jogador e aviso com Desfazer
-- `src/components/Quadro.tsx` – campo em SVG e arrasto com eventos de ponteiro
+- `src/jogada.ts` – passos, toques e numeração da jogada (funções puras, testadas)
+- `src/components/Quadro.tsx` – campo em SVG, bola e arrasto com eventos de ponteiro
+- `src/components/Trajeto.tsx` – desenho de cada ação da bola
+- `src/components/Passos.tsx` – painel da jogada: próximo toque e lista de passos
 - `src/styles.css` – tokens do sistema visual da equipa
+
+## Ícone
+
+`public/favicon.png`, `favicon-32.png`, `apple-touch-icon.png` e `icon-192.png` são o emblema da Casa Benfica Avis, recortado do logótipo.
