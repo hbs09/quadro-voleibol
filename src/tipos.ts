@@ -1,5 +1,13 @@
 export type Posicao = 'D' | 'O' | 'P' | 'C' | 'L'
 
+export const NOMES_POSICAO: Record<Posicao, string> = {
+  D: 'Distribuidor',
+  O: 'Oposto',
+  P: 'Ponta',
+  C: 'Central',
+  L: 'Líbero',
+}
+
 export interface Jogador {
   id: string
   nome: string
@@ -13,7 +21,8 @@ export interface Ponto {
   y: number
 }
 
-/** Jogador em campo: quem é e onde está. */
+/** Jogador em campo: quem é, a zona que ocupa na rotação e onde está desenhado. */
 export interface EmCampo extends Ponto {
   jogadorId: string
+  zona: number
 }

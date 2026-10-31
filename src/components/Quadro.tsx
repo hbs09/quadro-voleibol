@@ -9,6 +9,7 @@ import {
   ZONA_LIVRE,
 } from '../campo'
 import { useQuadro } from '../estado'
+import { trocaLibero } from '../plantel'
 import type { Jogador, Ponto } from '../tipos'
 
 const VB = {
@@ -28,6 +29,9 @@ const ETIQUETAS_ZONA = [
   { z: 1, x: 636, y: 862 },
 ]
 
+/** Distância (px de ecrã) a partir da qual um toque passa a ser arrasto. */
+const LIMIAR_ARRASTO = 6
+
 /** Nome que cabe na bola: até 7 letras, senão abrevia. */
 function nomeCurto(nome: string): string {
   const n = nome.trim()
@@ -35,11 +39,13 @@ function nomeCurto(nome: string): string {
 }
 
 interface Arrasto {
+  /** Jogador da entrada em campo (com líbero, é o central que ele substitui). */
   jogadorId: string
   pointerId: number
+  inicioEcra: Ponto
   /** Diferença entre o ponteiro e o centro da bola, para não "saltar". */
   desvio: Ponto
-  marcado: boolean
+  aMover: boolean
 }
 
 export function Quadro() {
@@ -49,15 +55,18 @@ export function Quadro() {
 
   const plantel = useQuadro((s) => s.plantel)
   const emCampo = useQuadro((s) => s.emCampo)
+  const liberoAtivo = useQuadro((s) => s.liberoAtivo)
   const etiqueta = useQuadro((s) => s.etiqueta)
+  const selecao = useQuadro((s) => s.selecao)
   const mover = useQuadro((s) => s.mover)
   const marcar = useQuadro((s) => s.marcar)
+  const tocar = useQuadro((s) => s.tocar)
 
   const porId = new Map<string, Jogador>(plantel.map((j) => [j.id, j]))
+  const libero = trocaLibero(plantel, emCampo, liberoAtivo)
 
   function paraQuadro(e: { clientX: number; clientY: number }): Ponto {
-    const svg = svgRef.current!
-    const m = svg.getScreenCTM()
+    const m = svgRef.current?.getScreenCTM()
     if (!m) return { x: 0, y: 0 }
     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse())
     return { x: p.x, y: p.y }
@@ -70,8 +79,9 @@ export function Quadro() {
     arrasto.current = {
       jogadorId,
       pointerId: e.pointerId,
+      inicioEcra: { x: e.clientX, y: e.clientY },
       desvio: { x: centro.x - p.x, y: centro.y - p.y },
-      marcado: false,
+      aMover: false,
     }
     svgRef.current?.setPointerCapture(e.pointerId)
     setAArrastar(jogadorId)
@@ -80,22 +90,31 @@ export function Quadro() {
   function movimento(e: RPointerEvent<SVGSVGElement>) {
     const a = arrasto.current
     if (!a || a.pointerId !== e.pointerId) return
-    if (!a.marcado) {
+    if (!a.aMover) {
+      const d = Math.hypot(e.clientX - a.inicioEcra.x, e.clientY - a.inicioEcra.y)
+      if (d < LIMIAR_ARRASTO) return
       marcar() // só entra no histórico se houver mesmo movimento
-      a.marcado = true
+      a.aMover = true
     }
     const p = paraQuadro(e)
     mover(a.jogadorId, { x: p.x + a.desvio.x, y: p.y + a.desvio.y })
   }
 
-  function fim(e: RPointerEvent<SVGSVGElement>) {
+  function fim(e: RPointerEvent<SVGSVGElement>, cancelado: boolean) {
     const a = arrasto.current
     if (!a || a.pointerId !== e.pointerId) return
     arrasto.current = null
     setAArrastar(null)
+    // Toque sem arrastar: seleciona ou troca.
+    if (!a.aMover && !cancelado) tocar('campo', a.jogadorId)
   }
 
   function teclado(e: RKeyboardEvent<SVGGElement>, jogadorId: string, centro: Ponto) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      tocar('campo', jogadorId)
+      return
+    }
     const passo = e.shiftKey ? 50 : 10
     const d: Record<string, Ponto> = {
       ArrowUp: { x: 0, y: -passo },
@@ -122,8 +141,8 @@ export function Quadro() {
       viewBox={`${VB.x} ${VB.y} ${VB.w} ${VB.h}`}
       preserveAspectRatio="xMidYMin meet"
       onPointerMove={movimento}
-      onPointerUp={fim}
-      onPointerCancel={fim}
+      onPointerUp={(e) => fim(e, false)}
+      onPointerCancel={(e) => fim(e, true)}
       aria-label="Quadro do campo"
     >
       {/* Campo */}
@@ -183,26 +202,40 @@ export function Quadro() {
 
       {/* Jogadores */}
       {ordenados.map((e) => {
-        const j = porId.get(e.jogadorId)
+        // Com líbero ligado, mostra-se o líbero no lugar do central de trás.
+        const mostradoId = libero && e.jogadorId === libero.centralId ? libero.liberoId : e.jogadorId
+        const j = porId.get(mostradoId)
         if (!j) return null
+        const eLibero = j.posicao === 'L'
         const texto = etiqueta === 'numero' ? String(j.numero) : nomeCurto(j.nome)
         const tamanho =
           etiqueta === 'numero' ? 60 : Math.max(34, Math.min(46, 200 / Math.max(texto.length, 1)))
         // Nomes compridos encolhem na horizontal para caberem na bola.
         const largo = etiqueta === 'nome' && texto.length >= 5
-        const ativo = aArrastar === j.id
+        const ativo = aArrastar === e.jogadorId
+        const selecionado = selecao?.lado === 'campo' && selecao.id === e.jogadorId
         return (
           <g
-            key={j.id}
+            key={e.jogadorId}
             className={`jogador${ativo ? ' a-arrastar' : ''}`}
             transform={`translate(${e.x} ${e.y})`}
             tabIndex={0}
-            aria-label={`${j.nome}, n.º ${j.numero}, ${j.posicao}. Usa as setas para mover.`}
-            onPointerDown={(ev) => inicio(ev, j.id, e)}
-            onKeyDown={(ev) => teclado(ev, j.id, e)}
+            aria-label={`${j.nome}, n.º ${j.numero}, ${j.posicao}${selecionado ? ', selecionado' : ''}. Enter para selecionar, setas para mover.`}
+            onPointerDown={(ev) => inicio(ev, e.jogadorId, e)}
+            onKeyDown={(ev) => teclado(ev, e.jogadorId, e)}
           >
             <circle r={RAIO_TOQUE} fill="transparent" />
             {ativo && <circle r={RAIO_BOLA + 12} fill="var(--equipa)" opacity={0.18} />}
+            {/* Seleção: estado em contorno */}
+            {selecionado && (
+              <circle
+                r={RAIO_BOLA + 13}
+                fill="none"
+                stroke="var(--texto)"
+                strokeWidth={6}
+                strokeDasharray="16 10"
+              />
+            )}
             <circle
               className="anel-foco"
               r={RAIO_BOLA + 6}
@@ -210,11 +243,17 @@ export function Quadro() {
               stroke="transparent"
               strokeWidth={4}
             />
-            <circle r={RAIO_BOLA} fill="var(--equipa)" />
+            {/* O líbero distingue-se pela camisola "ao contrário": fundo claro, contorno da equipa */}
+            <circle
+              r={eLibero ? RAIO_BOLA - 4 : RAIO_BOLA}
+              fill={eLibero ? 'var(--fundo)' : 'var(--equipa)'}
+              stroke={eLibero ? 'var(--equipa)' : 'none'}
+              strokeWidth={eLibero ? 8 : 0}
+            />
             <text
               textAnchor="middle"
               dominantBaseline="central"
-              fill="var(--equipa-texto)"
+              fill={eLibero ? 'var(--equipa)' : 'var(--equipa-texto)'}
               fontFamily="var(--f-titulo)"
               fontWeight={700}
               fontSize={tamanho}
