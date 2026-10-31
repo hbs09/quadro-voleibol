@@ -1,0 +1,226 @@
+/* Tokens do sistema visual da equipa (claro por omissão, escuro automático) */
+:root {
+  --fundo: #ffffff;
+  --sup: #f4f5f6;
+  --sup2: #e8ebee;
+  --linha: #d5d9de;
+  --linha-forte: #8a929d;
+  --texto: #1f2329;
+  --texto2: #5b626d;
+  --campo: #eceff2;
+  --campo-linha: #1f2329;
+  --aviso: #a85400;
+  --erro: #b3261e;
+  --bom: #1f7a4d;
+
+  /* Cor da equipa: única cor de destaque */
+  --equipa: #0b5d3b;
+  --equipa-texto: #ffffff;
+
+  --f-titulo: "Archivo Narrow", "Arial Narrow", system-ui, sans-serif;
+  --f-texto: "Archivo", system-ui, sans-serif;
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fundo: #0e1013;
+    --sup: #171a1f;
+    --sup2: #1c2026;
+    --linha: #2a2f37;
+    --linha-forte: #6b7380;
+    --texto: #f2f4f7;
+    --texto2: #a3abb8;
+    --campo: #1a1e24;
+    --campo-linha: #f2f4f7;
+    --aviso: #f0a24b;
+    --erro: #f2887f;
+    --bom: #4fbf8b;
+    --equipa: #5cc796;
+    --equipa-texto: #0e1013;
+  }
+}
+
+:root[data-theme="dark"] {
+  --fundo: #0e1013;
+  --sup: #171a1f;
+  --sup2: #1c2026;
+  --linha: #2a2f37;
+  --linha-forte: #6b7380;
+  --texto: #f2f4f7;
+  --texto2: #a3abb8;
+  --campo: #1a1e24;
+  --campo-linha: #f2f4f7;
+  --aviso: #f0a24b;
+  --erro: #f2887f;
+  --bom: #4fbf8b;
+  --equipa: #5cc796;
+  --equipa-texto: #0e1013;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--fundo);
+  color: var(--texto);
+  font-family: var(--f-texto);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 20px env(safe-area-inset-bottom);
+}
+
+/* Barra de topo: título e guia na mesma linha */
+.topo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 0 10px;
+  border-bottom: 1px solid var(--linha);
+}
+
+.topo h1 {
+  margin: 0;
+  font-family: var(--f-titulo);
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.topo .guia {
+  color: var(--texto2);
+  font-size: 15px;
+  flex: 1 1 160px;
+}
+
+.ferramentas {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 0;
+}
+
+.ferramentas .espaco {
+  flex: 1;
+}
+
+/* Botões segmentados */
+.segmentado {
+  display: inline-flex;
+  background: var(--sup2);
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.segmentado button {
+  min-height: 44px;
+  min-width: 56px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  font-family: var(--f-titulo);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--texto2);
+  cursor: pointer;
+}
+
+.segmentado button[aria-pressed="true"] {
+  background: var(--texto);
+  color: var(--fundo);
+}
+
+/* Botões de ação */
+.botao {
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1.5px solid var(--linha-forte);
+  background: transparent;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.botao:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.botao.cheio {
+  background: var(--equipa);
+  border-color: var(--equipa);
+  color: var(--equipa-texto);
+}
+
+/* Quadro */
+.quadro-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-bottom: 12px;
+}
+
+.quadro {
+  width: 100%;
+  height: 100%;
+  max-height: calc(100dvh - 150px);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.jogador {
+  cursor: grab;
+}
+
+.jogador.a-arrastar {
+  cursor: grabbing;
+}
+
+.jogador:focus {
+  outline: none;
+}
+
+.jogador:focus-visible .anel-foco {
+  stroke: var(--texto);
+}
+
+/* Telemóvel: o quadro ocupa a largura toda */
+@media (max-width: 600px) {
+  .quadro-wrap {
+    margin: 0 -14px;
+  }
+}
